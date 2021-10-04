@@ -1,0 +1,165 @@
+---
+title: "607 Fall 2021 Project 2 - Energy"
+author: "Mark Schmalfeld"
+date: "10/1/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r library}
+
+library(tidyverse)
+library(curl)
+library(purrr)
+library(lubridate)
+
+```
+
+Load energy data from github.  
+Convert characters that are numbers into numeric value.
+Clean up data set to eliminate NA rows, adjust to update column names, and setup 
+data so it can be transformed into a tidy data setup.
+
+
+
+```{r  load energy data from github}
+
+urlfile<-"https://raw.githubusercontent.com/schmalmr/607_Fall_2021_Project_2_Energy/main/Temp_primaryenergy_CSV.csv" 
+
+energy <- read_csv(url(urlfile))
+energy<-as_tibble(energy)
+energy<- energy[-which(is.na(energy)), ]
+energy<-as.data.frame(energy)
+energy<-type_convert((energy))
+#dataset %>% mutate_if(is.character,as.numeric)
+options(warn=-1)
+energy_data<- energy %>% mutate_if(is.character,as.numeric)
+energy_data<-bind_cols(energy$`Percent Change 2020`,energy_data)
+energy_data<-bind_cols(energy$Gigajoule_per_capita,energy_data)
+energy_data<-rename(energy_data, "2020_percent_change"= 2)
+energy_data<-rename(energy_data, "Country_Region"=1)
+energy_data <- energy_data[ -c(3)]
+#energy_data<-select(energy_data,-Gigajoule_per_capita)
+energy_data <- energy_data[ -c(59:60) ]
+glimpse(energy)
+glimpse(energy_data)
+view(energy_data)
+view(energy)
+
+
+```
+
+Gather data set into a tidy database with country-region, year and Giga Joules per capita.  (retained the 2020 % change as not clear we can derive it)
+
+```{r gather into tidy database}
+energy_tidy<-energy_data
+energy_tidy<-gather(energy_tidy,year,GJoules_per_capita,3:58)
+energy_tidy<-as.data.frame(energy_tidy)
+glimpse(energy_tidy)
+
+#energy_tidy<-as.character.factor(energy_tidy$Country_Region)
+#energy_world <- spread(energy_tidy,GJ_per_capita,County_Region) 
+#select(energy_tidy, ("Total World","Total North America"))
+#view(energy_world)
+#iris %>% select(starts_with("Sepal"))
+
+energy_world<-filter(energy_data,Country_Region=="Total World")
+energy_NA<-filter(energy_data,Country_Region=="Total North America")
+energy_Asia<-filter(energy_data,Country_Region=="Total Asia Pacific")
+energy_LA<-filter(energy_data,Country_Region=="Total S. & Cent. America")
+energy_ME<-filter(energy_data,Country_Region=="Total Middle East")
+energy_Africa<-filter(energy_data,Country_Region=="Total Africa")
+energy_Europe<-filter(energy_data,Country_Region=="Total Europe")
+energy_CIS<-filter(energy_data,Country_Region=="Total CIS")
+Regions<-bind_rows(energy_world,energy_Africa,energy_Asia,energy_CIS,energy_Europe,energy_LA,energy_ME,energy_NA)
+Regions <- Regions[ -c(2)]
+Regions<-gather(Regions,year,GJoules_per_capita,2:57)
+Regions<-as.data.frame(Regions)
+
+
+```
+
+In general the 25% of the energy demand is supplied by oil/ refineries.
+One Gigajoule is equivalent to 0.16 BBL of Oil.
+A refinery operates to produce approx 65-70% of the production for transportation fuels and the fuel for ICE (internal combustion engines - gasoline) is approx 50% of the refinery production.
+
+Use the 70% as an estimate of the total refinery production converted for transport fuels in gallons. ( ignore the impact of volume swell due to density drop) to estimate gallons per capita.  Also 42 gal per BBL is nominal for oil.
+
+Assumption for this is production is in the given region. This is not 100% true - but currently between regions within approx 10% or so of each regions own production (ie neglect trying to figure out export mix between regions)
+
+```{r Calculated regional and global production of fuel per capita}
+
+Regions<-mutate(Regions,BBL_per_Capita_Refinery=GJoules_per_capita*0.16*0.25)
+Regions<-mutate(Regions, Gal_Fuel_per_capita= BBL_per_Capita_Refinery*42*0.7)
+
+
+
+```
+
+
+## Including Plots
+
+Plot the Giga Joules per capita and the refinery BBL per capita and the Gals fuel for transporation per capita. 
+All plots are similar in this simplified example and the next step to highlight the more dramatic changes are to convert with the population increase. 
+
+The general trends are still highlighted:
+North America with the highest per capita consumption of energy.  The 1980 drop developing as reformulated fuel standards developed, elimination of lead occurred and the goal to increase fuel economy standards became important following our oil shortage.   [ The drop in the CIS is likely related to improved fuel standards as communism declined in the early 1990's - and increased market acceptance and use of Western improvements to fuel standards occurred for transport ]
+
+Asia and Middle East shows the dramatic and continuing increase in the per capita consumption of energy and transport fuel as a rising middle class uses more transportation. Asia has the majority of the population and the largest total fuel and oil demand globally today in spite of the North America having a large per capita demand.
+
+Europe has maintained better public transport and alternative transport to cars - and maintained a relatively high tax on fuel / cars holding demand per capita down.
+
+Africa remains the next big region to experience a larger middle income growth and would be expected to show an increase in transport fuel demand / and general energy demand.  [ It has remained very low and it shows in this analysis how depressed the growth has been in teh region]
+
+
+My final question concerning is this sufficient data to decide how all of these changes are impacting green house gas emissions is more of a look at the data graphs vs a quick internet search on what has changed.
+
+The demand growth for energy in the transport segment is approx 55 gal per capita to 84 gal per capita from 1965 to 2020.  Is this sufficent to indicate how the use of transport fuels are impacting the environment? and are changing Green House Gas emissions due to fuel? 
+
+* Actually, I do not think this is nearly sufficient data to make a claim that it is worse than it was in 1965. Here is why:
+1) Since 1965 we have significantly changed the fuel we use.
+     - In 1975 we began to eliminate lead from the fuel banned by 1996 in US (globally followed)
+     - Sulfur in fuel was reduced globally and very dramatically reduces GHG emissions
+     - Refining NOX, SOX controls required
+
+2) Introduction of the catalytic converter in 1975 with relatively full use by 1985.
+     - Dramtically reduces hydrocarbon emissions and NOx emissions - but does not change CO2 emissions.
+3) Reformulated fuel standards in 2005 in US required improvements and the use of cleaner biofuel (Ethanol) Globally this has followed and reduces the emissions and is in the long cycle more sustainable than oil. (even though a small %)
+4) We have additionally improved our MPG (car miles per gallon) from 13.5 MPG in 1965 to approx 22-23 MPG in 2020. While not changing the direct consumption we see - it does dramatically reduce the demand for fuel.  The behavior pattern to improve this is the most significant near term factor to reduce GHG in next 5-10 yr.
+
+5) It was a fun simple data set to try and see if we can identify any overall trends.  More work can be done on this data set. 
+
+6) Data set is from the IEA (International Energy Agency based in France.  Data is free on website in exchange for an email/name.)
+
+
+
+```{r pressure, echo=FALSE}
+Regions<-transform(Regions, year = as.numeric(year))
+
+ggplot(Regions,aes(x=year,y=GJoules_per_capita,shape=Country_Region,color=Country_Region))+geom_point(size=2.5)+scale_shape_manual(values=c(21,24,2,18,7,25,15,19))
+
+ggplot(Regions,aes(x=year,y=BBL_per_Capita_Refinery,shape=Country_Region,color=Country_Region))+geom_point(size=2.5)+scale_shape_manual(values=c(21,24,2,18,7,25,15,19))
+
+
+ggplot(Regions,aes(x=year,y=Gal_Fuel_per_capita,shape=Country_Region,color=Country_Region))+geom_point(size=2.5)+scale_shape_manual(values=c(21,24,2,18,7,25,15,19))
+
+
+
+```
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
